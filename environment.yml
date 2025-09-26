@@ -1,0 +1,15 @@
+name: sph-simulation
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.9
+  - numpy>=1.24.0
+  - pandas>=2.0.0
+  - matplotlib>=3.7.0
+  - scipy>=1.10.0
+  - moviepy>=1.0.3
+  - ffmpeg
+  - pip
+  - pip:
+    - ffmpeg-python>=0.2.0

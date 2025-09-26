@@ -52,7 +52,56 @@ This project uses the following Python packages:
 - `scipy` - Scientific computing and integration
 - `moviepy` / `ffmpeg` - Animation generation
 
-## 💻 Development Environment
+## 💻 Setup & Installation
+
+### Option 1: Quick Setup (Recommended)
+
+**Linux/macOS:**
+```bash
+# Clone and navigate to project
+git clone <repository-url>
+cd SPHSimulation
+
+# Run setup script
+./setup.sh
+```
+
+**Windows:**
+```bash
+# Clone and navigate to project
+git clone <repository-url>
+cd SPHSimulation
+
+# Run setup script
+setup.bat
+```
+
+### Option 2: Manual Setup
+
+**Using pip:**
+```bash
+# Create virtual environment
+python -m venv venv
+
+# Activate environment
+source venv/bin/activate  # Linux/macOS
+# OR
+venv\Scripts\activate.bat  # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+**Using conda:**
+```bash
+# Create environment from file
+conda env create -f environment.yml
+
+# Activate environment
+conda activate sph-simulation
+```
+
+### Option 3: Nix (Advanced Users)
 
 The project includes a Nix flake for reproducible development environments:
 
@@ -61,9 +110,29 @@ The project includes a Nix flake for reproducible development environments:
 nix develop
 ```
 
-This provides all necessary Python packages and FFmpeg for animation generation.
+### System Dependencies
+
+- **Python 3.9+** (3.12 recommended)
+- **FFmpeg** (for video generation)
+  - Ubuntu/Debian: `sudo apt install ffmpeg`
+  - macOS: `brew install ffmpeg`  
+  - Windows: Download from [ffmpeg.org](https://ffmpeg.org) or use `choco install ffmpeg`
 
 ## 🎯 Usage
+
+**First, activate your environment:**
+```bash
+# If using venv
+source venv/bin/activate  # Linux/macOS
+# OR
+venv\Scripts\activate.bat  # Windows
+
+# If using conda
+conda activate sph-simulation
+
+# If using Nix
+nix develop
+```
 
 ### Running Sod Shock Simulations
 
