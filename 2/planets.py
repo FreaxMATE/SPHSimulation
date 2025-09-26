@@ -50,22 +50,29 @@ class Particles():
     def get_statevector_history(self):
         return self.sv_history
 
-# Coordinates of particles
-N = 400
-r_0 = np.concatenate((np.linspace(-0.6, 0, 320), np.linspace(0, 0.6, 80)))
-r_0 = np.stack((r_0, np.zeros_like(r_0), np.zeros_like(r_0)), axis=1)  # shape (N, 3)
-v_0 = np.zeros((N, 3))
-e_0 = np.concatenate((np.full(320, 2.5), np.full(N - 320, 1.795)))
-rho_0 = np.concatenate((np.full(320, 1.0), np.full(N - 320, 0.25)))
-p_0 = np.concatenate((np.full(320, 1.0), np.full(N - 320, 0.1795)))
-m_0 = np.full(N, 0.001875)
-particles = Particles(x=r_0, v=v_0, e=e_0, rho=rho_0, p=p_0, m=m_0, N=N)
-y0 = particles.to_state_vector()
 gammam1 = 1.4 - 1
-smoothing_length = 0.01
+smoothing_length = 1e7
 
 
-# fig, axes = plt.subplots(1, 3, figsize=(10, 4))
+# Load initial conditions
+
+data = np.loadtxt('/home/kunruh/Documents/Studium/Physik/Master/4/AppliedCompPhysicsAndML/Project/SPHSimulation/2/Planet300.dat')
+data_1 = data.copy()
+data_1[:, :3] += 1e8
+data_1[:, 3:6] += 1e7
+
+data = np.concatenate([data, data_1])
+
+N = len(data)
+x_0 = np.array([data[:, 0], data[:, 1], data[:, 2]]).T
+v_0 = np.array([data[:, 3], data[:, 4], data[:, 5]]).T
+m_0 = np.array(data[:, 6])
+rho_0 = np.array(data[:, 7])
+p_0 = np.array(data[:, 8])
+e_0 = p_0 / (rho_0 * gammam1)
+
+particles = Particles(x=x_0, v=v_0, e=e_0, rho=rho_0, p=p_0, m=m_0, N=N)
+y0 = particles.to_state_vector()
 
 def set_w(alpha, x):
     r_i = np.expand_dims(x, axis=1)
@@ -83,16 +90,25 @@ def set_w(alpha, x):
     w_ij[mask_near] = alpha * (1/6) * (2 - R[mask_near])**3
 
 
+    mask_nearest = (R >= 0) & (R <= 1)
+    mask_near = (R >= 1) & (R <= 2)
+    mask_far = R >= 2
+
+    phi_deriv = np.zeros_like(R)
+    phi_deriv[mask_nearest] = (1/smoothing_length**2)*((4/3)*R[mask_nearest] - (6/5)*R[mask_nearest]**3 + 0.5*R[mask_nearest]**4)
+    phi_deriv[mask_near] = (1/smoothing_length**2)*((8/3)*R[mask_near] - 3*R[mask_near]**2 + (6/5)*R[mask_near]**3 - (1/6)*R[mask_near]**4 - 1/(15*R[mask_near]**2))
+    phi_deriv[mask_far] = 1/r_abs[mask_far]**2
+
     R = np.repeat(R[..., np.newaxis], 3, axis=2)
-    r_abs = np.repeat(r_abs[..., np.newaxis], 3, axis=2)
+    r_abs_exp = np.repeat(r_abs[..., np.newaxis], 3, axis=2)
 
     w_ij_deriv = np.zeros_like(R)
     mask_nearest = (R >= 0) & (R < 1)
     mask_near = (R >= 1) & (R < 2)
     w_ij_deriv[mask_nearest] = alpha * (-2 + (1.5)*R[mask_nearest]) * (dr[mask_nearest]/(smoothing_length**2))
-    w_ij_deriv[mask_near] = -alpha * 0.5 * (2 - R[mask_near])**2 * (dr[mask_near]/(smoothing_length*r_abs[mask_near]))
+    w_ij_deriv[mask_near] = -alpha * 0.5 * (2 - R[mask_near])**2 * (dr[mask_near]/(smoothing_length*r_abs_exp[mask_near]))
 
-    return w_ij, w_ij_deriv
+    return w_ij, w_ij_deriv, phi_deriv, r_abs
 
 eta = 1.3
 alpha_n = 1
@@ -103,7 +119,8 @@ def sph_derivatives(t, y):
     particles.set_from_state_vector(y)
     x, v, e, _, _ = particles.get_from_state_vector(y)
     m = particles.get_mass()
-    w_ij, w_ij_deriv = set_w(alpha=1/smoothing_length, x=x)
+    # w_ij, w_ij_deriv = set_w(alpha=3/(2*np.pi*smoothing_length**3), x=x)
+    w_ij, w_ij_deriv, phi_deriv, r_abs = set_w(alpha=3/(2*np.pi*smoothing_length**3), x=x)
 
     # Compute density and pressure
     rho = np.sum(m[None, :] * w_ij, axis=1)
@@ -148,8 +165,14 @@ def sph_derivatives(t, y):
     pp_bracket = (p_i / (rho_i ** 2)) + (p_j / (rho_j ** 2)) + pi_ij
     left_side = m[None, :] * pp_bracket
 
+    # Gravitational acceleration - exclude self-interaction (i==j)
+    mask_not_self = ~np.eye(N, dtype=bool)
+    grav_force_term = np.zeros((N, N, 3))
+    grav_force_term[mask_not_self] = (m[None, :, None] * phi_deriv[:, :, None] * x_ij / r_abs[:, :, None])[mask_not_self]
+    v_grav_deriv = -constants.gravitational_constant * np.sum(grav_force_term, axis=1)
+
     # Velocity derivative
-    v_deriv = -np.einsum('ij,ijk->ik', left_side, w_ij_deriv)
+    v_deriv = -np.einsum('ij,ijk->ik', left_side, w_ij_deriv) + v_grav_deriv
 
     # Energy derivative
     dot = np.einsum('ijk,ijk->ij', v_ij, w_ij_deriv)
@@ -157,12 +180,12 @@ def sph_derivatives(t, y):
 
     # Position derivative
     r_deriv = v
-
-    # Return concatenated derivatives
+    if int(t) % 100 == 0:
+        print(f"Progress: t = {t:.2f}")
     return np.concatenate([r_deriv.flatten(), v_deriv.flatten(), e_deriv, np.zeros(N), np.zeros(N)])
 
 
-sol = integrate.RK45(fun=sph_derivatives, t0=0.0, y0=y0, t_bound=0.4, rtol=1e-5, atol=1e-7, max_step=0.1)
+sol = integrate.RK45(fun=sph_derivatives, t0=0.0, y0=y0, t_bound=8000, rtol=1e-6, atol=1e-8)
 while sol.status == 'running':
     sol.step()
     if sol.status == 'finished':
@@ -171,73 +194,71 @@ while sol.status == 'running':
 # --- Animation of all timestamps ---
 import matplotlib.animation as animation
 
-fig, axs = plt.subplots(2, 2, figsize=(12, 8))
+fig, axs = plt.subplots(figsize=(12, 8))
 
-# Energy (e)
-line_e, = axs[0, 0].plot([], [], label='Energy (e)')
-axs[0, 0].set_xlabel('x')
-axs[0, 0].set_ylabel('e')
-axs[0, 0].set_title('Energy')
-axs[0, 0].set_xlim(-0.45, 0.45)
-axs[0, 0].set_ylim(np.min(e_0), 2.75)
-axs[0, 0].legend()
+# Set up the plot
+axs.set_xlabel('Position x / m')
+axs.set_ylabel('Position y / m')
 
-# Velocity (vx)
-line_v, = axs[0, 1].plot([], [], label='Velocity (vx)')
-axs[0, 1].set_xlabel('x')
-axs[0, 1].set_ylabel('vx')
-axs[0, 1].set_title('Velocity')
-axs[0, 1].set_xlim(-0.45, 0.45)
-axs[0, 1].set_ylim(-0.075, 1)
-axs[0, 1].legend()
+# Get initial data to set up plot limits
+x_init, v_init, e_init, rho_init, p_init = particles.get_from_state_vector(particles.sv_history[0][1])
 
-# Density (rho)
-line_rho, = axs[1, 0].plot([], [], label='Density (rho)')
-axs[1, 0].set_xlabel('x')
-axs[1, 0].set_ylabel('rho')
-axs[1, 0].set_title('Density')
-axs[1, 0].set_xlim(-0.45, 0.45)
-axs[1, 0].set_ylim(0, 1.25)
-axs[1, 0].legend()
+# Calculate plot limits based on all data
+all_x_coords = []
+all_y_coords = []
+all_rho_values = []
 
-# Pressure (p)
-line_p, = axs[1, 1].plot([], [], label='Pressure (p)')
-axs[1, 1].set_xlabel('x')
-axs[1, 1].set_ylabel('p')
-axs[1, 1].set_title('Pressure')
-axs[1, 1].set_xlim(-0.45, 0.45)
-axs[1, 1].set_ylim(0, 1.25)
-axs[1, 1].legend()
+for t, state_vector in particles.sv_history:
+    x, v, e, rho, p = particles.get_from_state_vector(state_vector)
+    all_x_coords.extend(x[:, 0])
+    all_y_coords.extend(x[:, 1])
+    all_rho_values.extend(rho)
+
+x_min, x_max = min(all_x_coords), max(all_x_coords)
+y_min, y_max = min(all_y_coords), max(all_y_coords)
+rho_min, rho_max = min(all_rho_values), max(all_rho_values)
+
+# Add some padding
+x_padding = (x_max - x_min) * 0.1
+y_padding = (y_max - y_min) * 0.1
+
+axs.set_xlim(x_min - x_padding, x_max + x_padding)
+axs.set_ylim(y_min - y_padding, y_max + y_padding)
+
+# Initial scatter plot
+scat = axs.scatter(x_init[:, 0], x_init[:, 1], c=rho_init, cmap='viridis', vmin=rho_min, vmax=rho_max, s=20)
+
+# Add colorbar
+cbar = plt.colorbar(scat, ax=axs)
+cbar.set_label(r'Density $\rho$ / $kg/m^{3}$')
+
+# Title
+title = axs.set_title(f"SPH Simulation - Density at t={particles.sv_history[0][0]:.4f} s")
+
+def animate(frame):
+    """Animation function called for each frame"""
+    if frame < len(particles.sv_history):
+        t, state_vector = particles.sv_history[frame]
+        x, v, e, rho, p = particles.get_from_state_vector(state_vector)
+        
+        # Update scatter plot data
+        scat.set_offsets(np.column_stack((x[:, 0], x[:, 1])))
+        scat.set_array(rho)
+        
+        # Update title
+        title.set_text(f"SPH Simulation - Density at t={t:.4f} s")
+    
+    return scat, title
+
+# Create animation
+print(f"Creating animation with {len(particles.sv_history)} frames...")
+anim = animation.FuncAnimation(fig, animate, frames=len(particles.sv_history), interval=50, blit=False, repeat=True)
+
+# Save as MP4
+print("Saving animation as planets_history.mp4...")
+anim.save('planets_history_2_planets_move.mp4', writer='ffmpeg', fps=20, bitrate=1800)
 
 plt.tight_layout()
-
-def init():
-    line_e.set_data([], [])
-    line_v.set_data([], [])
-    line_rho.set_data([], [])
-    line_p.set_data([], [])
-    return line_e, line_v, line_rho, line_p
-
-def animate(i):
-    x, v, e, rho, p = particles.get_from_state_vector(particles.sv_history[i][1])
-    line_e.set_data(x[:, 0], e)
-    line_v.set_data(x[:, 0], v[:, 0])
-    line_rho.set_data(x[:, 0], rho)
-    line_p.set_data(x[:, 0], p)
-    axs[0, 0].set_title(f"Energy at t={particles.sv_history[i][0]:.4f}")
-    axs[0, 1].set_title(f"Velocity at t={particles.sv_history[i][0]:.4f}")
-    axs[1, 0].set_title(f"Density at t={particles.sv_history[i][0]:.4f}")
-    axs[1, 1].set_title(f"Pressure at t={particles.sv_history[i][0]:.4f}")
-    return line_e, line_v, line_rho, line_p
-
-ani = animation.FuncAnimation(fig, animate, frames=len(particles.sv_history), init_func=init, blit=False)
-
-# To display the animation in a Jupyter notebook, use:
-# from IPython.display import HTML
-# HTML(ani.to_jshtml())
-
-# To save the animation as an mp4 file:
-
 plt.show()
 
-ani.save('sodshock_movie.mp4', writer='ffmpeg')
+print("Animation saved successfully!")

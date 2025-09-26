@@ -52,8 +52,10 @@ class Particles():
 
 # Coordinates of particles
 N = 400
-r_0 = np.concatenate((np.linspace(-0.6, 0, 320), np.linspace(0, 0.6, 80)))
-r_0 = np.stack((r_0, np.zeros_like(r_0), np.zeros_like(r_0)), axis=1)  # shape (N, 3)
+r_0 = np.concatenate((np.linspace(-0.6, 0, 320), np.linspace(0, 0.6, 81)[1:]))
+r_0 = np.stack((r_0, np.zeros_like(r_0), np.zeros_like(r_0)), axis=1)
+for i in r_0:
+    print(i)
 v_0 = np.zeros((N, 3))
 e_0 = np.concatenate((np.full(320, 2.5), np.full(N - 320, 1.795)))
 rho_0 = np.concatenate((np.full(320, 1.0), np.full(N - 320, 0.25)))
@@ -162,7 +164,7 @@ def sph_derivatives(t, y):
     return np.concatenate([r_deriv.flatten(), v_deriv.flatten(), e_deriv, np.zeros(N), np.zeros(N)])
 
 
-sol = integrate.RK45(fun=sph_derivatives, t0=0.0, y0=y0, t_bound=0.4, rtol=1e-5, atol=1e-7, max_step=0.1)
+sol = integrate.RK45(fun=sph_derivatives, t0=0.0, y0=y0, t_bound=0.4, rtol=1e-6, atol=1e-8)
 while sol.status == 'running':
     sol.step()
     if sol.status == 'finished':
@@ -175,17 +177,17 @@ fig, axs = plt.subplots(2, 2, figsize=(12, 8))
 
 # Energy (e)
 line_e, = axs[0, 0].plot([], [], label='Energy (e)')
-axs[0, 0].set_xlabel('x')
-axs[0, 0].set_ylabel('e')
+axs[0, 0].set_xlabel('Position x / m')
+axs[0, 0].set_ylabel('Internal Energy e / J/kg')
 axs[0, 0].set_title('Energy')
 axs[0, 0].set_xlim(-0.45, 0.45)
 axs[0, 0].set_ylim(np.min(e_0), 2.75)
 axs[0, 0].legend()
 
 # Velocity (vx)
-line_v, = axs[0, 1].plot([], [], label='Velocity (vx)')
-axs[0, 1].set_xlabel('x')
-axs[0, 1].set_ylabel('vx')
+line_v, = axs[0, 1].plot([], [], label='Velocity (v)')
+axs[0, 1].set_xlabel('Position x / m')
+axs[0, 1].set_ylabel('Velocity v / m/s')
 axs[0, 1].set_title('Velocity')
 axs[0, 1].set_xlim(-0.45, 0.45)
 axs[0, 1].set_ylim(-0.075, 1)
@@ -193,8 +195,8 @@ axs[0, 1].legend()
 
 # Density (rho)
 line_rho, = axs[1, 0].plot([], [], label='Density (rho)')
-axs[1, 0].set_xlabel('x')
-axs[1, 0].set_ylabel('rho')
+axs[1, 0].set_xlabel('Position x / m')
+axs[1, 0].set_ylabel(r'Density $\rho$ / $kg/m^{3}$')
 axs[1, 0].set_title('Density')
 axs[1, 0].set_xlim(-0.45, 0.45)
 axs[1, 0].set_ylim(0, 1.25)
@@ -202,8 +204,8 @@ axs[1, 0].legend()
 
 # Pressure (p)
 line_p, = axs[1, 1].plot([], [], label='Pressure (p)')
-axs[1, 1].set_xlabel('x')
-axs[1, 1].set_ylabel('p')
+axs[1, 1].set_xlabel('Position x / m')
+axs[1, 1].set_ylabel(r'Pressure / $N/m^2$')
 axs[1, 1].set_title('Pressure')
 axs[1, 1].set_xlim(-0.45, 0.45)
 axs[1, 1].set_ylim(0, 1.25)
