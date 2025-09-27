@@ -56,10 +56,17 @@ smoothing_length = 1e7
 
 # Load initial conditions
 
-data = np.loadtxt('/home/kunruh/Documents/Studium/Physik/Master/4/AppliedCompPhysicsAndML/Project/SPHSimulation/2/Planet300.dat')
+data = np.loadtxt('/home/kunruh/Documents/Studium/Physik/Master/4/AppliedCompPhysicsAndML/Project/SPHSimulation/2/Planet2400.dat')
+dx0_planet1 = 2.5e8
+dv0_planet1 = 4e6
+data[:, :3] -= dx0_planet1
+data[:, 3:6] += dv0_planet1
+
+dx0_planet2 = 2.5e8
+dv0_planet2 = 4e6
 data_1 = data.copy()
-data_1[:, :3] += 1e8
-data_1[:, 3:6] += 1e7
+data_1[:, :3] += dx0_planet2
+data_1[:, 3:6] -= dv0_planet2
 
 data = np.concatenate([data, data_1])
 
@@ -127,9 +134,6 @@ def sph_derivatives(t, y):
     p = gammam1 * rho * e
     particles.set_density_pressure(rho, p)
 
-    # Save state history (optional: comment out to save memory)
-    particles.save_statevector_to_history(t, np.concatenate([x.flatten(), v.flatten(), e, rho, p]))
-
     # Precompute expanded arrays for broadcasting
     p_i = p[:, None]
     p_j = p[None, :]
@@ -185,9 +189,25 @@ def sph_derivatives(t, y):
     return np.concatenate([r_deriv.flatten(), v_deriv.flatten(), e_deriv, np.zeros(N), np.zeros(N)])
 
 
-sol = integrate.RK45(fun=sph_derivatives, t0=0.0, y0=y0, t_bound=8000, rtol=1e-6, atol=1e-8)
+sol = integrate.RK45(fun=sph_derivatives, t0=0.0, y0=y0, t_bound=800, rtol=1e-6, atol=1e-8)
+
+# Save initial state
+particles.save_statevector_to_history(sol.t, sol.y)
+
 while sol.status == 'running':
     sol.step()
+    # Save state at each completed step
+    if sol.status == 'running' or sol.status == 'finished':
+        # Get current state and compute density/pressure for history
+        particles.set_from_state_vector(sol.y)
+        x, v, e, _, _ = particles.get_from_state_vector(sol.y)
+        m = particles.get_mass()
+        w_ij, _, _, _ = set_w(alpha=3/(2*np.pi*smoothing_length**3), x=x)
+        rho = np.sum(m[None, :] * w_ij, axis=1)
+        p = gammam1 * rho * e
+        
+        particles.save_statevector_to_history(sol.t, np.concatenate([x.flatten(), v.flatten(), e, rho, p]))
+    
     if sol.status == 'finished':
         break
 
@@ -203,19 +223,20 @@ axs.set_ylabel('Position y / m')
 # Get initial data to set up plot limits
 x_init, v_init, e_init, rho_init, p_init = particles.get_from_state_vector(particles.sv_history[0][1])
 
-# Calculate plot limits based on all data
-all_x_coords = []
-all_y_coords = []
-all_rho_values = []
+# Calculate plot limits based on middle frame data
+middle_frame_index = len(particles.sv_history) // 2
+t_middle, state_vector_middle = particles.sv_history[middle_frame_index]
+x_middle, v_middle, e_middle, rho_middle, p_middle = particles.get_from_state_vector(state_vector_middle)
 
+x_min, x_max = 2*np.min(x_middle[:, 0]), 2*np.max(x_middle[:, 0])
+y_min, y_max = 2*np.min(x_middle[:, 1]), 2*np.max(x_middle[:, 1])
+
+# Still calculate rho limits from all data for consistent coloring
+all_rho_values = []
 for t, state_vector in particles.sv_history:
     x, v, e, rho, p = particles.get_from_state_vector(state_vector)
-    all_x_coords.extend(x[:, 0])
-    all_y_coords.extend(x[:, 1])
     all_rho_values.extend(rho)
 
-x_min, x_max = min(all_x_coords), max(all_x_coords)
-y_min, y_max = min(all_y_coords), max(all_y_coords)
 rho_min, rho_max = min(all_rho_values), max(all_rho_values)
 
 # Add some padding
@@ -255,9 +276,13 @@ print(f"Creating animation with {len(particles.sv_history)} frames...")
 anim = animation.FuncAnimation(fig, animate, frames=len(particles.sv_history), interval=50, blit=False, repeat=True)
 
 # Save as MP4
-print("Saving animation as planets_history.mp4...")
-anim.save('planets_history_2_planets_move.mp4', writer='ffmpeg', fps=20, bitrate=1800)
 
+filename = 'planets_2400'
+filename += f"_dx1_{int(dx0_planet1)}_dv1_{int(dv0_planet1)}_dx2_{int(dx0_planet2)}_dv2_{int(dv0_planet2)}"
+print(f"Saving animation as {filename}...")
+
+anim.save(filename+'.mp4', writer='ffmpeg', fps=20, bitrate=1800)
+np.savetxt(filename+'.csv', y0)
 plt.tight_layout()
 plt.show()
 
