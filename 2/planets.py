@@ -56,17 +56,20 @@ smoothing_length = 1e7
 
 # Load initial conditions
 
-data = np.loadtxt('/home/kunruh/Documents/Studium/Physik/Master/4/AppliedCompPhysicsAndML/Project/SPHSimulation/2/Planet2400.dat')
-dx0_planet1 = 2.5e8
-dv0_planet1 = 4e6
-data[:, :3] -= dx0_planet1
-data[:, 3:6] += dv0_planet1
-
-dx0_planet2 = 2.5e8
-dv0_planet2 = 4e6
+data = np.loadtxt('/home/kunruh/Documents/Studium/Physik/Master/4/AppliedCompPhysicsAndML/Project/SPHSimulation/2/Planet600.dat')
 data_1 = data.copy()
+dx0_planet1 = 0
+# dv0_planet1 = 4e6
+dvx0_planet1 = 0.1e5
+dvy0_planet1 = 0.025e5
+data[:, :3] -= dx0_planet1
+# data[:, 3:] += dv0_planet1
+data[:, 3] += dvx0_planet1
+data[:, 4] += dvy0_planet1
+
+dx0_planet2 = 1.5e8
 data_1[:, :3] += dx0_planet2
-data_1[:, 3:6] -= dv0_planet2
+
 
 data = np.concatenate([data, data_1])
 
@@ -80,6 +83,34 @@ e_0 = p_0 / (rho_0 * gammam1)
 
 particles = Particles(x=x_0, v=v_0, e=e_0, rho=rho_0, p=p_0, m=m_0, N=N)
 y0 = particles.to_state_vector()
+
+fig_init, ax_init = plt.subplots()
+ax_init.scatter(x_0[:, 0], x_0[:, 1], s=10)
+# Use quiver to plot all velocity vectors at once
+every_n = 100
+ax_init.quiver(
+    x_0[::every_n, 0], x_0[::every_n, 1],
+    v_0[::every_n, 0], v_0[::every_n, 1],
+    angles='xy',
+    alpha=0.75,
+    color='black',
+    width=0.005,  # Make arrows narrower
+    label=r'$v_{xy0}$ = (' +
+          f"{np.mean(v_0[::every_n, 0]):.2e}" + ', ' +
+          f"{np.mean(v_0[::every_n, 1]):.2e}" + ')'
+)
+ax_init.set_xlabel('Position x / m')
+ax_init.legend(['Initial velocity vectors'], loc='upper right')
+ax_init.set_ylabel('Position y / m')
+ax_init.legend()
+plt.tight_layout()
+
+
+filename = 'planets_600'
+filename += f"_dx1_{int(dx0_planet1)}_dvx1_{int(dvx0_planet1)}_dvy1_{int(dvy0_planet1)}_dx2_{int(dx0_planet2)}"
+
+fig_init.savefig('init_cond_'+filename+'.png', dpi=150)
+plt.show()
 
 def set_w(alpha, x):
     r_i = np.expand_dims(x, axis=1)
@@ -189,7 +220,7 @@ def sph_derivatives(t, y):
     return np.concatenate([r_deriv.flatten(), v_deriv.flatten(), e_deriv, np.zeros(N), np.zeros(N)])
 
 
-sol = integrate.RK45(fun=sph_derivatives, t0=0.0, y0=y0, t_bound=800, rtol=1e-6, atol=1e-8)
+sol = integrate.RK45(fun=sph_derivatives, t0=0.0, y0=y0, t_bound=20000, rtol=1e-6, atol=1e-8)
 
 # Save initial state
 particles.save_statevector_to_history(sol.t, sol.y)
@@ -223,28 +254,19 @@ axs.set_ylabel('Position y / m')
 # Get initial data to set up plot limits
 x_init, v_init, e_init, rho_init, p_init = particles.get_from_state_vector(particles.sv_history[0][1])
 
-# Calculate plot limits based on middle frame data
-middle_frame_index = len(particles.sv_history) // 2
-t_middle, state_vector_middle = particles.sv_history[middle_frame_index]
-x_middle, v_middle, e_middle, rho_middle, p_middle = particles.get_from_state_vector(state_vector_middle)
-
-x_min, x_max = 2*np.min(x_middle[:, 0]), 2*np.max(x_middle[:, 0])
-y_min, y_max = 2*np.min(x_middle[:, 1]), 2*np.max(x_middle[:, 1])
-
-# Still calculate rho limits from all data for consistent coloring
-all_rho_values = []
-for t, state_vector in particles.sv_history:
-    x, v, e, rho, p = particles.get_from_state_vector(state_vector)
-    all_rho_values.extend(rho)
-
-rho_min, rho_max = min(all_rho_values), max(all_rho_values)
+# Calculate plot limits based on initial position data
+x_min, x_max = np.min(x_init[:, 0]), np.max(x_init[:, 0])
+y_min, y_max = np.min(x_init[:, 1]), np.max(x_init[:, 1])
 
 # Add some padding
-x_padding = (x_max - x_min) * 0.1
-y_padding = (y_max - y_min) * 0.1
+x_padding = (x_max - x_min) * 0.5
+y_padding = (y_max - y_min) * 0.5
 
 axs.set_xlim(x_min - x_padding, x_max + x_padding)
 axs.set_ylim(y_min - y_padding, y_max + y_padding)
+
+# Use initial density values for coloring
+rho_min, rho_max = np.min(rho_init), np.max(rho_init)
 
 # Initial scatter plot
 scat = axs.scatter(x_init[:, 0], x_init[:, 1], c=rho_init, cmap='viridis', vmin=rho_min, vmax=rho_max, s=20)
@@ -277,8 +299,6 @@ anim = animation.FuncAnimation(fig, animate, frames=len(particles.sv_history), i
 
 # Save as MP4
 
-filename = 'planets_2400'
-filename += f"_dx1_{int(dx0_planet1)}_dv1_{int(dv0_planet1)}_dx2_{int(dx0_planet2)}_dv2_{int(dv0_planet2)}"
 print(f"Saving animation as {filename}...")
 
 anim.save(filename+'.mp4', writer='ffmpeg', fps=20, bitrate=1800)

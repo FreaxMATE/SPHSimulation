@@ -164,7 +164,22 @@ python planets.py
 - **Animated visualizations**: MP4 files showing temporal evolution
 - **Data analysis**: Particle state histories for post-processing
 
-## 🧮 Physics Background
+## 🎬 Videos
+
+Several simulation videos are included in the repository (see `1/` and `2/` directories). A few highlights:
+
+- Sod shock tube animation (shock evolution): [1/sodshock_movie.mp4](1/sodshock_movie.mp4)
+- Planetary collision — 600 particles per planet, moderate impact velocity:
+  - [2/planets_600_dx1_0_dvx1_5000_dvy1_4000_dx2_100000000.mp4](2/planets_600_dx1_0_dvx1_5000_dvy1_4000_dx2_100000000.mp4)
+  - [2/planets_600_dx1_0_dvx1_10000_dvy1_2500_dx2_150000000.mp4](2/planets_600_dx1_0_dvx1_10000_dvy1_2500_dx2_150000000.mp4)
+- Long-run / high-resolution case (2400 particles): [2/planets_2400_dx1_250000000_dv1_1000000_dx2_250000000_dv2_1000000.mp4](2/planets_2400_dx1_250000000_dv1_1000000_dx2_250000000_dv2_1000000.mp4)
+- Trajectory history movie (2-body motion): [2/planets_history_2_planets_move_dx1_200000000_dv1_1000000_dx2_200000000_dv2_1000000.mp4](2/planets_history_2_planets_move_dx1_200000000_dv1_1000000_dx2_200000000_dv2_1000000.mp4)
+
+Tip: use a media player or the browser to inspect the MP4 files; thumbnails and PNG frames are provided for quick previews in the `2/` folder.
+
+
+
+## �🧮 Physics Background
 
 ### Smoothed Particle Hydrodynamics (SPH)
 SPH is a computational method for simulating fluid flows by representing the fluid as a collection of particles. Each particle carries physical properties (mass, density, pressure, velocity) and interacts with nearby particles through a smoothing kernel.
