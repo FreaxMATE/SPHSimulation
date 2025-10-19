@@ -178,8 +178,28 @@ Several simulation videos are included in the repository (see `1/` and `2/` dire
 Tip: use a media player or the browser to inspect the MP4 files; thumbnails and PNG frames are provided for quick previews in the `2/` folder.
 
 
+## 🖼️ Gallery (out/)
 
-## �🧮 Physics Background
+A few generated previews from the `out/` folder. These should render inline on GitHub; click to view at full size.
+
+### Sod Shock Tube
+
+![Sod Shock Tube — animation](out/sodshock_movie.gif)
+
+### Planetary Simulations
+
+![Planetary — 600p, offset 0, dv(10000, 2500), dx2 150e6](out/planets_600_dx1_0_dvx1_10000_dvy1_2500_dx2_150000000.gif)
+
+![Planetary — 600p, dv 1e6 each, dx 250e6](out/planets_600_dx1_250000000_dv1_1000000_dx2_250000000_dv2_1000000.gif)
+
+![Planetary — 2400p, dv 1e6 each, dx 250e6](out/planets_2400_dx1_250000000_dv1_1000000_dx2_250000000_dv2_1000000.gif)
+
+### Initial Condition Preview
+
+![Initial conditions — 600p, dx1 0, dv(10000, 2500), dx2 150e6](out/init_cond_planets_600_dx1_0_dvx1_10000_dvy1_2500_dx2_150000000.png)
+
+
+## 🧮 Physics Background
 
 ### Smoothed Particle Hydrodynamics (SPH)
 SPH is a computational method for simulating fluid flows by representing the fluid as a collection of particles. Each particle carries physical properties (mass, density, pressure, velocity) and interacts with nearby particles through a smoothing kernel.
